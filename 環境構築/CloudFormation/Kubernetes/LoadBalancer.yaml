@@ -1,0 +1,97 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: k8s cluster network template
+
+#-----------------------------
+# Metadata Definition Block
+#-----------------------------
+Metadata: 
+  "AWS::CloudFormation::Interface": 
+    ParameterGroups: 
+      - Label: 
+          default: "ELB Configuration"
+        Parameters: 
+          - InstanceTargetIP1
+          - InstanceTargetIP2
+          - InstanceTargetIP3
+    ParameterLabels: 
+      InstanceTargetIP1: 
+        default: "10.240.0.10"
+      InstanceTargetIP2: 
+        default: "10.240.0.11"
+      InstanceTargetIP3:
+        default: "10.240.0.12"
+
+#-----------------------------
+# Parameter Definition Block
+#-----------------------------
+Parameters:
+  InstanceTargetIP1: 
+    Type: String
+    Default: "10.240.0.10"
+  InstanceTargetIP2: 
+    Type: String
+    Default: "10.240.0.11"
+  InstanceTargetIP3:
+    Type: String
+    Default: "10.240.0.12"
+
+#-----------------------------
+# Resource Definition Block
+#-----------------------------
+Resources:
+  TARGETGROUP:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties: 
+      Name: kubernetes
+      Port: 6443
+      Protocol: TCP
+      Tags: 
+        - Key: "Name"
+          Value: "kubernetes"
+        - Key: "Project"
+          Value: "kubenetes-pj"
+        - Key: "Environment"
+          Value: "dev"
+      Targets: 
+        - Id: !Ref InstanceTargetIP1
+        - Id: !Ref InstanceTargetIP2
+        - Id: !Ref InstanceTargetIP3
+      TargetType: ip
+      VpcId: !ImportValue K8SVPC
+
+  ELV2:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: kubernetes
+      Scheme: internet-facing
+      Subnets: 
+        - !ImportValue K8SPublicSubnet
+      Tags: 
+        - Key: "Name"
+          Value: "kubernetes"
+        - Key: "Project"
+          Value: "kubenetes-pj"
+        - Key: "Environment"
+          Value: "dev"
+      Type: network
+
+  LISTENER:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties: 
+      DefaultActions: 
+        -  TargetGroupArn: !Ref TARGETGROUP
+           Type: forward
+      LoadBalancerArn: !Ref ELV2
+      Port: 443
+      Protocol: TCP
+
+#-----------------------------
+# Output Definition Block
+#-----------------------------
+Outputs:
+  ELV2ID:
+    Description: Information about the elv2id
+    Value: !Ref ELV2
+    Export:
+      Name: K8SELV2

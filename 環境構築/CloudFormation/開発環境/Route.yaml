@@ -1,0 +1,15 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: kubenetes dev env network template
+
+#-----------------------------
+# Resource Definition Block
+#-----------------------------
+Resources:
+#-----route
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !ImportValue PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !ImportValue InternetGateway

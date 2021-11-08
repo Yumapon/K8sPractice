@@ -1,0 +1,66 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Windows dev env sg template
+
+#-----------------------------
+# Metadata Definition Block
+#-----------------------------
+Metadata: 
+  "AWS::CloudFormation::Interface": 
+    ParameterGroups: 
+      - Label: 
+          default: "SecurityGroup Configuration"
+        Parameters: 
+          - GroupName
+    ParameterLabels: 
+      GroupName: 
+        default: "SecurityGroup Name"
+
+#-----------------------------
+# Parameter Definition Block
+#-----------------------------
+Parameters:
+  GroupName:
+    Type: String
+    Default: "devenv-sg"
+
+#-----------------------------
+# Resource Definition Block
+#-----------------------------
+Resources:
+  IngressSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: Windows Instance Attach Security Group
+      GroupName: !Ref GroupName 
+      SecurityGroupIngress: 
+        -
+          CidrIp: "0.0.0.0/0"
+          Description: "allow ssh"
+          FromPort: 22
+          IpProtocol: "tcp"
+          ToPort: 22
+        -
+          CidrIp: "0.0.0.0/0"
+          Description: "allow icmp"
+          FromPort: 8
+          IpProtocol: "icmp"
+          ToPort: -1
+      Tags: 
+        - Key: "Name"
+          Value: "devenv-sg"
+        - Key: "Project"
+          Value: "kubenetes-pj"
+        - Key: "Environment"
+          Value: "dev"
+      VpcId: !ImportValue VPC
+
+#-----------------------------
+# Output Definition Block
+#-----------------------------
+Outputs:
+  IngressSGID:
+    Description: Information about the sgid
+    Value: !Ref IngressSG
+    Export:
+      Name: IngressSG

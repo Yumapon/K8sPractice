@@ -1,0 +1,15 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: k8s cluster network template
+
+#-----------------------------
+# Resource Definition Block
+#-----------------------------
+Resources:
+#-----route
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !ImportValue K8SPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !ImportValue K8SInternetGateway

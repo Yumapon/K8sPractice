@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: k8s cluster network template
+
+#-----------------------------
+# Metadata Definition Block
+#-----------------------------
+Metadata: 
+  "AWS::CloudFormation::Interface": 
+    ParameterGroups: 
+      - Label: 
+          default: "Instance Configuration"
+        Parameters: 
+          - InstanceName
+          - InstanceIP
+          - KeyName
+          - Ec2ImageId
+          - InstanceTypeParameter
+    ParameterLabels: 
+      InstanceName: 
+        default: "Instance Name"
+      InstanceIP: 
+        default: "Instance IP"
+      KeyName:
+        default: "Instance Key Pair Name"
+      Ec2ImageId:
+        default: "Instance Image"
+      InstanceTypeParameter:
+        default: "Instance Type"
+
+#-----------------------------
+# Parameter Definition Block
+#-----------------------------
+Parameters:
+  InstanceName:
+    Description: Enter worker-0, worker-1, worker-2
+    Type: String
+  InstanceIP:
+    Description: Enter 10.240.0.20, 10.240.0.21, 10.240.0.22
+    Type: String
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  Ec2ImageId:
+    Type: String
+    Default: ami-085e9421f80dbe728
+  InstanceTypeParameter:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.xlarge
+      - t4g.xlarge
+      - t3a.xlarge
+      - t2.xlarge
+    Description: Enter t3.micro, t3.xlarge, t4g.xlarge, or t3a.xlarge, t2.xlarge Default is t3.xlarge.
+
+#-----------------------------
+# Resource Definition Block
+#-----------------------------
+Resources:
+  EC2Instance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: !Ref Ec2ImageId
+      InstanceType: !Ref InstanceTypeParameter
+      AvailabilityZone: !Sub "${AWS::Region}a"
+      KeyName: !Ref KeyName
+      SubnetId: !ImportValue K8SPublicSubnet
+      BlockDeviceMappings: 
+      - DeviceName: "/dev/sda1"
+        Ebs: 
+          VolumeSize: "50"
+      PrivateIpAddress: !Ref InstanceIP
+      SourceDestCheck: false
+      SecurityGroupIds: 
+        - !ImportValue  K8SIngressSG
+      Tags: 
+        - Key: "Name"
+          Value: !Ref InstanceName
+        - Key: "Project"
+          Value: "kubenetes-pj"
+        - Key: "Environment"
+          Value: "dev"
+      UserData:
+        Fn::Base64: 
+          Fn::Sub: |
+            #!/bin/bash -xe
+            name=${InstanceName}|pod-cidr=${InstanceIP}

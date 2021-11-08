@@ -1,0 +1,131 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: k8s cluster network template
+
+#-----------------------------
+# Metadata Definition Block
+#-----------------------------
+Metadata: 
+  "AWS::CloudFormation::Interface": 
+    ParameterGroups: 
+      - Label: 
+          default: "Network Configuration"
+        Parameters: 
+          - VPCCidr
+          - SubnetCidr
+    ParameterLabels: 
+      VPCCidr: 
+        default: "VPC CIDR"
+      SubnetCidr: 
+        default: "PublicSubnet CIDR"
+
+#-----------------------------
+# Parameter Definition Block
+#-----------------------------
+Parameters:
+  VPCCidr:
+    Type: String
+    Default: "10.240.0.0/24"
+  
+  SubnetCidr:
+    Type: String
+    Default: "10.240.0.0/24"
+
+#-----------------------------
+# Resource Definition Block
+#-----------------------------
+Resources:
+#------VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: !Ref VPCCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags: 
+        - Key: "Name"
+          Value: "kubernetes"
+        - Key: "Project"
+          Value: "kubenetes-pj"
+        - Key: "Environment"
+          Value: "dev"
+
+#------Subnet
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    DependsOn: AttachGateway
+    Properties: 
+      AvailabilityZone: !Sub "${AWS::Region}a"
+      CidrBlock: !Ref SubnetCidr
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: "Name"
+          Value: "kubernetes"
+        - Key: "Project"
+          Value: "kubenetes-pj"
+        - Key: "Environment"
+          Value: "dev"
+      VpcId: !Ref VPC
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: AttachGateway
+    Properties: 
+      Tags: 
+        - Key: "Name"
+          Value: "kubernetes"
+        - Key: "Project"
+          Value: "kubenetes-pj"
+        - Key: "Environment"
+          Value: "dev"
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+#------IGW
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: "Name"
+          Value: "kubernetes"
+        - Key: "Project"
+          Value: "kubenetes-pj"
+        - Key: "Environment"
+          Value: "dev"
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+#-----------------------------
+# Output Definition Block
+#-----------------------------
+Outputs:
+  VPCID:
+    Description: Information about the vpcid
+    Value: !Ref VPC 
+    Export:
+      Name: K8SVPC
+  PublicSubnetID:
+    Description: Information about the subnetid
+    Value: !Ref PublicSubnet
+    Export:
+      Name: K8SPublicSubnet
+  PublicRouteTableID:
+    Description: Information about the routetableid
+    Value: !Ref PublicRouteTable
+    Export:
+      Name: K8SPublicRouteTable
+  InternetGatewayID:
+    Description: Information about the igwid
+    Value: !Ref InternetGateway
+    Export:
+      Name: K8SInternetGateway

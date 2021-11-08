@@ -1,0 +1,81 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: dev env ec2 template
+
+#-----------------------------
+# Metadata Definition Block
+#-----------------------------
+Metadata: 
+  "AWS::CloudFormation::Interface": 
+    ParameterGroups: 
+      - Label: 
+          default: "Instance Configuration"
+        Parameters: 
+          - Ec2ImageId
+          - InstanceTypeParameter
+    ParameterLabels: 
+      Ec2ImageId: 
+        default: "Select AMI"
+      InstanceTypeParameter: 
+        default: "Instance Type"
+
+#-----------------------------
+# Parameter Definition Block
+#-----------------------------
+Parameters:
+  Ec2ImageId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+  InstanceTypeParameter:
+    Type: String
+    Default: t3.xlarge
+    AllowedValues:
+      - t3.xlarge
+      - t4g.xlarge
+      - t3a.xlarge
+      - t2.xlarge
+    Description: Enter t3.xlarge, t4g.xlarge, or t3a.xlarge, t2.xlarge Default is t3.xlarge.
+
+#-----------------------------
+# Resource Definition Block
+#-----------------------------
+Resources:
+  EC2Instance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: !Ref Ec2ImageId
+      InstanceType: !Ref InstanceTypeParameter
+      AvailabilityZone: !Sub "${AWS::Region}a"
+      SubnetId: !ImportValue PublicSubnet
+#      BlockDeviceMappings: 
+#      - DeviceName: "/dev/sda1"
+#       Ebs: 
+#          VolumeType: "gp3"
+#          Iops: "3000"
+#          DeleteOnTermination: "false"
+#          VolumeSize: "50"
+      SecurityGroupIds: 
+        - !ImportValue IngressSG
+      Tags: 
+        - Key: "Name"
+          Value: "devenv-instance"
+        - Key: "Project"
+          Value: "kubenetes-pj"
+        - Key: "Environment"
+          Value: "dev"
+      UserData:
+        Fn::Base64: |
+          #cloud-config
+          password: MBnxncyj12
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+
+#-----------------------------
+# Output Definition Block
+#-----------------------------
+Outputs:
+  InstanceID:
+    Description: Information about the instanceid
+    Value: !Ref EC2Instance
+    Export: 
+      Name: EC2InstanceID

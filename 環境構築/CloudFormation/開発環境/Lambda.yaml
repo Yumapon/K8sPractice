@@ -1,0 +1,98 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Windows dev lambda template
+
+#-----------------------------
+# Metadata Definition Block
+#-----------------------------
+Metadata: 
+  "AWS::CloudFormation::Interface": 
+    ParameterGroups: 
+      - Label: 
+          default: "Lambda Configuration"
+        Parameters: 
+          - FunctionName
+    ParameterLabels: 
+      FunctionName: 
+        default: "Lambda Function Name"
+
+#-----------------------------
+# Parameter Definition Block
+#-----------------------------
+Parameters:
+  FunctionName:
+    Type: String
+    Default: "EC2StopLambda"
+
+#-----------------------------
+# Resource Definition Block
+#-----------------------------
+Resources:
+  Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: Ec2permissions
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                - "ec2:StopInstances"
+                Resource: '*'
+    
+  StopEC2InstanceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref FunctionName
+      Runtime: python3.8
+      Role: !GetAtt Role.Arn
+      Handler: index.lambda_handler
+      Timeout: 60
+      Environment:
+         Variables:
+          instances: !ImportValue EC2InstanceID
+          Region: "ap-northeast-1"
+      Code:
+        ZipFile: |
+          import json
+          import re
+          import os
+          import boto3
+          
+          def lambda_handler(event, context):
+            # TODO implement
+            instances_str = os.environ['instances']
+            region = os.environ['Region']
+            ec2 = boto3.client('ec2', region_name=region)
+            instances= re.findall(r"i-[0-9a-z]{17}|i-[0-9a-z]{8}", instances_str)
+            print('stopped your instances: ' + str(instances) + "in Region "+ region)
+            ec2.stop_instances(InstanceIds=instances)
+            
+            return {
+              'statusCode': 200,
+              'body': json.dumps('stopped your instances: ' + str(instances))
+            }
+      Description: Function that stops instance
+
+#-----------------------------
+# Output Definition Block
+#-----------------------------
+Outputs:
+  StopEC2InstanceLambda:
+    Description: Information about the LambdaArn
+    Value: !GetAtt StopEC2InstanceLambda.Arn
+    Export:
+      Name: StopEC2InstanceLambdaARN

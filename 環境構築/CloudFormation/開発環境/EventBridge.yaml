@@ -1,0 +1,58 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Windows dev env event bridge template ver2
+
+#-----------------------------
+# Metadata Definition Block
+#-----------------------------
+Metadata: 
+  "AWS::CloudFormation::Interface": 
+    ParameterGroups: 
+      - Label: 
+          default: "EC2 Stop Rule"
+        Parameters: 
+          - RuleName
+          - StopScheduled
+    ParameterLabels: 
+      RuleName:
+        default: "rule name"
+      StopScheduled: 
+        default: "Instance Stop Time Config"
+
+#-----------------------------
+# Parameter Definition Block
+#-----------------------------
+Parameters: 
+  RuleName:
+    Description: Rule Name
+    Type: String
+
+  StopScheduled: 
+    Default: cron(0 14 * * ? *)
+    Description: enter an Schedule expression example cron(0 14 * * ? *) see https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
+    Type: String
+
+#-----------------------------
+# Resource Definition Block
+#-----------------------------
+Resources:
+  StopScheduledRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "ScheduledRule"
+      EventBusName: "default"
+      Name: !Ref RuleName
+      ScheduleExpression: !Ref StopScheduled
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: !ImportValue StopEC2InstanceLambdaARN
+          Id: "TargetFunctionV1"
+
+  permissionForEventsToInvokeStopEC2Instances:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !ImportValue StopEC2InstanceLambdaARN
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      "SourceArn" : !GetAtt StopScheduledRule.Arn
