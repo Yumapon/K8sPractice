@@ -14,6 +14,9 @@ ENV DEBCONF_NOWARNINGS=yes
 #    && brew install azure-functions-core-tools@3 \
 #    && brew link --overwrite azure-functions-core-tools@3
 
+RUN sudo apt-get update -y \
+    && sudo apt-get install -y groff
+
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
     && sudo apt-get install zip unzip \
     && unzip awscliv2.zip \
