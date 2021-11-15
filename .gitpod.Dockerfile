@@ -18,4 +18,5 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     && sudo apt-get install zip unzip \
     && unzip awscliv2.zip \
     && sudo ./aws/install \
+    && sudo apt-get install jq
 #    && ./aws/install -i /usr/local/aws-cli -b /usr/local/bin

@@ -1,4 +1,12 @@
-# Kubernetes The Hard Way
+# Kubernetes環境構築
+
+## gitpodで環境を構築する場合の初期設定
+
+```sh
+#下記コマンドでそれなりに権限のあるAWSユーザにログインできる設定をしてください。
+#シークレットキーとアクセスキーを聞かれます
+aws configure
+```
 
 ## まずはAWS上にKubernetesを構築する開発環境を準備
 
@@ -59,6 +67,13 @@
 
     #進捗をwatchとかで見とくのもあり。
     watch -c "aws cloudformation describe-stacks --stack-name k8ssg | jq '.Stacks[].StackStatus'"
+    ```
+
+* Key
+
+    ```sh
+    #unix系(Windowsのキー格納場所は知らないので適宜変えてください。) 
+    aws ec2 create-key-pair --key-name kubernetespoc --query 'KeyMaterial' --output text > ~/.ssh/kubernetespoc.pem
     ```
 
 * Instance.yaml
@@ -197,7 +212,7 @@
     aws cloudformation delete-stack --stack-name k8snetwork
     ```
 
-## 開発環境にログインし、構築に必要なクライアントツールを準備する
+## 開発環境にログインし、K8s構築に必要なクライアントツールを準備する
 
 * まずはログイン
 
@@ -243,87 +258,83 @@
 
 ## Kubernetes用のサーバをデプロイする
 
-* 作業フォルダ
+* 作業ディレクトリ
 
-環境構築/CloudFOrmation/Kubernetes/
+    環境構築/CloudFormation/Kubernetes/
 
-* Network.yaml
+* 01_Network.yaml
 
     ```sh
     #作成
     aws cloudformation create-stack \
     --stack-name k8snodenetwork \
-    --template-body file://./Network.yaml
+    --template-body file://./01_Network.yaml
 
     #完了したかどうかだけの確認なら以下でOK("CREATE_COMPLETE"と表示される)
     aws cloudformation describe-stacks --stack-name k8snodenetwork | jq '.Stacks[].StackStatus'
     ```
 
-* Route.yaml
+* 02_Route.yaml
 
     ```sh
     #作成
     aws cloudformation create-stack \
     --stack-name k8snoderoute \
-    --template-body file://./Route.yaml
+    --template-body file://./02_Route.yaml
 
     #完了したかどうかだけの確認なら以下でOK("CREATE_COMPLETE"と表示される)
     aws cloudformation describe-stacks --stack-name k8snoderoute | jq '.Stacks[].StackStatus'
     ```
 
-* SecurityGroup.yaml
+* 03_SecurityGroup.yaml
 
     ```sh
     #作成
     aws cloudformation create-stack \
     --stack-name k8snodesg \
-    --template-body file://./SecurityGroup.yaml
+    --template-body file://./03_SecurityGroup.yaml
 
     #完了したかどうかだけの確認なら以下でOK("CREATE_COMPLETE"と表示される)
     aws cloudformation describe-stacks --stack-name k8ssg | jq '.Stacks[].StackStatus'
 
     ```
 
-* LoadBalancer.yaml
+* LoadBalancer.yaml（ControllerNodeを冗長構成にしないので、当手順は実施しない）
+
+    ```sh
+    #作成
+    #aws cloudformation create-stack \
+    #--stack-name k8snodelb \
+    #--template-body file://./LoadBalancer.yaml
+
+    #作成したStackの詳細確認
+    #aws cloudformation describe-stacks --stack-name k8snodelb | jq .
+    ```
+
+* 04_ControllerNode.yaml
 
     ```sh
     #作成
     aws cloudformation create-stack \
-    --stack-name k8snodelb \
-    --template-body file://./LoadBalancer.yaml
-
-    #作成したStackの詳細確認
-    aws cloudformation describe-stacks --stack-name k8snodelb | jq .
+    --stack-name k8snodecontrollerinstance0 \
+    --template-body file://./04_ControllerNode.yaml \
+    --parameters \
+    ParameterKey=InstanceName,ParameterValue="controller-0" \
+    ParameterKey=KeyName,ParameterValue="kubernetes" \
+    ParameterKey=InstanceIP,ParameterValue="10.240.0.10"
     ```
 
-* ControllerNode.yaml
+* 05_WorkerNode.yaml
 
     ```sh
     #作成
-    for i in 0 1 2; do
-        aws cloudformation create-stack \
-        --stack-name k8snodecontrollerinstance${i} \
-        --template-body file://./ControllerNode.yaml \
-        --parameters \
-        ParameterKey=InstanceName,ParameterValue="controller-${i}" \
-        ParameterKey=KeyName,ParameterValue="kubernetes" \
-        ParameterKey=InstanceIP,ParameterValue="10.240.0.1${i}"
-    done
-    ```
-
-* WorkerNode.yaml
-
-    ```sh
-    #作成
-    for i in 0 1 2; do
-        aws cloudformation create-stack \
-        --stack-name k8snodeworkerinstance${i}  \
-        --template-body file://./WorkerNode.yaml \
-        --parameters \
-        ParameterKey=InstanceName,ParameterValue="worker-${i} " \
-        ParameterKey=KeyName,ParameterValue="kubernetes" \
-        ParameterKey=InstanceIP,ParameterValue="10.240.0.2${i} "
-    done
+    aws cloudformation create-stack \
+    --stack-name k8snodeworkerinstance0  \
+    --template-body file://./05_WorkerNode.yaml \
+    --parameters \
+    ParameterKey=InstanceName,ParameterValue="worker-0 " \
+    ParameterKey=KeyName,ParameterValue="kubernetes" \
+    ParameterKey=InstanceIP,ParameterValue="10.240.0.20 "
     ```
 
 ## Ubuntuにログインする際の注意点
@@ -426,3 +437,310 @@ aws ec2 authorize-security-group-ingress \
   --protocol tcp \
   --port ${NODE_PORT} \
   --cidr 0.0.0.0/0
+
+## PrometheusServerの構築
+
+* 作業ディレクトリ
+
+  Kubenetes/環境構築/CloudFormation/Kubernetesdev
+
+* 前提条件
+
+  手順：【Kubernetes用のサーバをデプロイする】の以下項目がすでに作成済みであること  
+  1. Network.yaml  
+  2. Route.yaml  
+  ※K8s インスタンスを構築したサブネット上にPrometheusも構築するため。
+
+* PrometheusSG.yaml
+
+  ```sh
+  #作成
+  aws cloudformation create-stack \
+  --stack-name prometheussg \
+  --template-body file://./10_PrometheusSG.yaml
+
+  #完了したかどうかだけの確認なら以下でOK("CREATE_COMPLETE"と表示される)
+  aws cloudformation describe-stacks --stack-name prometheussg | jq '.Stacks[].StackStatus'
+  ```
+
+* PrometheusServer.yaml
+
+  ```sh
+  #作成
+  aws cloudformation create-stack \
+  --stack-name prometheusserver \
+  --template-body file://./11_PrometheusServer.yaml \
+  --parameters \
+  ParameterKey=InstanceName,ParameterValue="prometheusserver" \
+  ParameterKey=KeyName,ParameterValue="kubernetespoc" \
+  ParameterKey=InstanceIP,ParameterValue="10.240.0.31"
+  ```
+
+## PrometheusServerのセットアップ
+
+* Prometheusの起動
+
+  ```sh
+  #SSHLogin
+  ssh -i ~/.ssh/kubernetespoc.pem ec2-user@$(aws ec2 describe-instances --instance-ids $(aws cloudformation describe-stacks --stack-name prometheusserver | jq '.Stacks[].Outputs[].OutputValue' | awk -F'["]' '{print $2}') | jq '.Reservations[].Instances[].PublicIpAddress' | awk -F'["]' '{print $2}')
+
+  #Prometheusのダウンロード(URLは適宜最新版に変えてください。：https://prometheus.io/download/)
+  wget "https://github.com/prometheus/prometheus/releases/download/v2.31.1/prometheus-2.31.1.linux-amd64.tar.gz"
+
+  #展開
+  tar -xzf prometheus-2.31.1.linux-amd64.tar.gz
+
+  #設定の修正
+  vim ./prometheus-2.31.1.linux-amd64/prometheus.yml
+  #修正内容は下記の通り(#は消してください)
+  #global:
+  #  scrape_interval: 10s
+  #scrape_configs:
+  #  - job_name: "prometheus"
+  #    static_configs:
+  #      - targets: ["localhost:9090"]
+
+  #実行
+  cd ./prometheus-2.31.1.linux-amd64
+  ./prometheus
+  ```
+
+* Node exporterを使用してOSのメトリクスを取得する
+
+  ```sh
+  #SSHLoginできていなければ実行
+  ssh -i ~/.ssh/kubernetespoc.pem ec2-user@$(aws ec2 describe-instances --instance-ids $(aws cloudformation describe-stacks --stack-name prometheusserver | jq '.Stacks[].Outputs[].OutputValue' | awk -F'["]' '{print $2}') | jq '.Reservations[].Instances[].PublicIpAddress' | awk -F'["]' '{print $2}')
+
+  #Node exporterのダウンロード(URLは適宜最新版に変えてください。：https://prometheus.io/download/)
+  wget "https://github.com/prometheus/node_exporter/releases/download/v1.2.2/node_exporter-1.2.2.linux-amd64.tar.gz"
+
+  #展開
+  tar -xzf node_exporter-1.2.2.linux-amd64.tar.gz
+
+  #実行
+  cd node_exporter-1.2.2.linux-amd64
+  ./node_exporter
+
+  #Prometheusのダッシュボードで色々見てみると、ターゲットが増えていたり取得しているデータが増えている
+  ```
+
+* 設定を変更してPrometheusからアラートを発行させる
+
+  ```sh
+  #Alert Ruleを設定
+  vim prometheus.yml
+  #修正内容は下記の通り(#は消してください)
+  #global:
+  #  scrape_interval: 10s
+  #  evaluation_interval: 10s
+  #alerting:
+  #  alertmanagers:
+  #    - static_configs:
+  #        - targets:
+  #          - localhost:9093
+  #rule_files:
+  #    - "rules.yml"
+  #scrape_configs:
+  #  - job_name: "prometheus"
+  #    static_configs:
+  #      - targets: ["localhost:9090"]
+  #  - job_name: "node"
+  #    static_configs:
+  #      - targets: ["localhost:9100"]
+
+  vim rules.yml
+  #修正内容は下記の通り(#は消してください)
+  #groups:
+  #- name: example
+  #  rules:
+  #  - alert: InstanceDown
+  #    expr: up == 0
+  #    for: 1m
+  #  labels:
+  #          severity: __severity__
+  #        annotations:
+  #          summary: testalert
+  #          description: testalert
+
+  #設定を読み込ませるために再起動(すでに起動している場合は一度落としてから下記コマンドで起動してください)
+  ./prometheus
+
+  ```
+
+* Alert Managerを使用してPrometheusが吐くアラートを処理する(今回はSlackに送信)
+
+  ```sh
+  #SSHLoginできていなければ実行
+  ssh -i ~/.ssh/kubernetespoc.pem ec2-user@$(aws ec2 describe-instances --instance-ids $(aws cloudformation describe-stacks --stack-name prometheusserver | jq '.Stacks[].Outputs[].OutputValue' | awk -F'["]' '{print $2}') | jq '.Reservations[].Instances[].PublicIpAddress' | awk -F'["]' '{print $2}')
+
+  #ダウンロード
+  wget "https://github.com/prometheus/alertmanager/releases/download/v0.23.0/alertmanager-0.23.0.linux-amd64.tar.gz"
+
+  #展開
+  tar -xzf alertmanager-0.23.0.linux-amd64.tar.gz
+
+  #AlertManagerの設定ファイルを編集
+  cd alertmanager-0.23.0.linux-amd64
+  vim alertmanager.yml
+
+  #修正内容は下記の通り(#は消してください)
+  #global:
+  #  slack_api_url: 'https://hooks.slack.com/services/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'
+
+  #route:
+  #  receiver: 'slack-notifications' # (1)
+
+  #receivers:
+  #- name: 'slack-notifications' # (2)
+  #  slack_configs:
+  #  - channel: 'prometheus-alert'
+  #    title: "{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}" # (3)
+  #    text: "{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
+
+  #alertmanagerを実行
+  ./alertmanager
+  ```
+
+## Pythonで作成したアプリケーションのメトリクスを取得してみる
+
+* Smapleアプリケーション
+
+  ```python3
+  import random
+  import time
+  import http.server
+  from prometheus_client import start_http_server
+  from prometheus_client import Counter
+  from prometheus_client import Gauge
+  from prometheus_client import Summary
+
+  #Hello Worldが返された回数を追跡
+  REQUESTS = Counter('hello_worlds_total', 'Hello Worlds requested.')
+  EXCEPTIONS = Counter('hello_world_exceptions_total', 'Exceptions serving Hello World.')
+  INPROGRESS = Gauge('hello_worlds_inprogress', 'Number of Hello Worlds in progress')
+  LAST = Gauge('hello_world_last_time_seconds', 'The last time a Hello World was served.')
+  LATENCY = Summary('hello_world_latency_seconds', 'Time for a request Hello World.')
+
+  class MyHandler(http.server.BaseHTTPRequestHandler):
+    @INPROGRESS.track_inprogress()
+    @LATENCY.time()
+    def do_GET(self):
+      REQUESTS.inc()#Counterを１増加させる
+      with EXCEPTIONS.count_exceptions():
+        if random.random() < 0.2:
+          raise Exception
+      self.send_response(200)
+      self.end_headers()
+      self.wfile.write(b"Hello World")
+      LAST.set_to_current_time()
+
+  if __name__ == "__main__":
+    start_http_server(8000) #port8000にPrometheusにメトリクスを配信するHTTPサーバを起動する
+    server = http.server.HTTPServer(('localhost', 8001), MyHandler)
+    server.serve_forever()
+  ```
+
+* pythonを実行
+
+  ```sh
+  #Python確認
+  python3 --version
+
+  #ライブラリをインストール
+  pip3 install prometheus_client
+
+  #SampleProgramを配置(内容は上記のSampleアプリケーション)
+  vim sample.py
+  ```
+
+* PromQLで色々確認
+
+  ```PromQL
+  #Pythonが上がっているかを確認
+  up
+
+  #pythonの情報を確認
+
+  #pythonが叩かれた回数をチェック(EC2上でcurlを打鍵し、pytonを何度か呼び出してみてからチェックしてみてください。)
+  rate(hello_worlds_total[1m])
+
+  #pythonの呼び出し
+  #注意：PythonコードでHTTPサーバを立てているわけではないので、別端末からhttpリクエストを送信しても応答はない。
+  curl "http://localhost:8001"
+  ```
+
+## Spring Boot Appicationからメトリクスを取得する
+
+  今回、以下のソースコードを使用してメトリクスを取得してみる  
+  [Yumapon/SpringTaskApp](https://github.com/Yumapon/MetricsTest.git)  
+
+* Applicationの用意
+
+  ```sh
+  #git install
+  sudo yum isntall -y
+
+  #git clone
+  git clone https://github.com/Yumapon/MetricsTest.git
+
+  #実行前にJava11をインストールしといてください
+
+  #ビルド
+  cd MetricsTest/
+  ./mvnw clean package -f ./pom.xml
+
+  #実行
+  java $JAVA_OPTIONS -jar target/demo-0.0.1-SNAPSHOT.jar
+
+  #確認
+  curl "http://$(aws ec2 describe-instances --instance-ids $(aws cloudformation describe-stacks --stack-name prometheusserver | jq '.Stacks[].Outputs[].OutputValue' | awk -F'["]' '{print $2}') | jq '.Reservations[].Instances[].PublicIpAddress' | awk -F'["]' '{print $2}'):8080/test"
+
+  #prometheusのメトリクスが取得できているか確認
+  curl "http://$(aws ec2 describe-instances --instance-ids $(aws cloudformation describe-stacks --stack-name prometheusserver | jq '.Stacks[].Outputs[].OutputValue' | awk -F'["]' '{print $2}') | jq '.Reservations[].Instances[].PublicIpAddress' | awk -F'["]' '{print $2}'):8080/actuator/prometheus"
+  ```
+
+* prometheus側のメトリクス取得設定
+
+  ```sh
+  #SSH Login
+  ssh -i ~/.ssh/kubernetespoc.pem ec2-user@$(aws ec2 describe-instances --instance-ids $(aws cloudformation describe-stacks --stack-name prometheusserver | jq '.Stacks[].Outputs[].OutputValue' | awk -F'["]' '{print $2}') | jq '.Reservations[].Instances[].PublicIpAddress' | awk -F'["]' '{print $2}')
+
+  #設定ファイルの編集
+  cd prometheus-2.31.1.linux-amd64/
+  vim promethes.yml
+  #修正内容は下記の通り(#は消してください)
+  # my global config
+  #global:
+  #  scrape_interval: 10s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  #  evaluation_interval: 10s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  ## Alertmanager configuration
+  #alerting:
+  #  alertmanagers:
+  #    - static_configs:
+  #        - targets:
+  #          - localhost:9093
+
+  ## Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+  #rule_files:
+  #    - "rules.yml"
+  #scrape_configs:
+  #  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  #  - job_name: "prometheus"
+  #    static_configs:
+  #      - targets: ["localhost:9090"]
+  #  - job_name: "node"
+  #    static_configs:
+  #      - targets: ["localhost:9100"]
+  #  - job_name: "python"
+  #    static_configs:
+  #      - targets: ["localhost:8000"]
+  #  - job_name: "springboot"
+  #    metrics_path: "/actuator/prometheus"
+  #    static_configs:
+  #      - targets: ["localhost:8080"]
+
+  #設定変更後、再起動してください
+  
+  ```
+
+## メモ
