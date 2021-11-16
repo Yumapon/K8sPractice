@@ -1,6 +1,6 @@
 # README
 
-## 説明
+## 概要
 
 * [環境構築](./環境構築)  
     Kubernetes構築手順やPrometheus構築等の資料を格納しています

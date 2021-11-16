@@ -8,11 +8,11 @@
 
 [^1]: コントローラノード３台構成かつワーカーノードも３台構成でLBもかました本番環境構成を作成したい場合は[Kubernetes The Hardway](https://github.com/prabhatsharma/kubernetes-the-hard-way-aws)を参照してください
 
-### K8sを構築するための開発用サーバをAWS上に用意する
+## K8sを構築するための開発用サーバをAWS上に用意する
 
 * 作業ディレクトリ
 
-    ``環境構築/CloudFormation/``
+    ``Kubenetes/環境構築/CloudFormation/dev``
 
 * VPC,Subnet,RouteTable,IGW等の作成
 
@@ -64,7 +64,7 @@
     aws ec2 create-key-pair --key-name kubernetespoc --query 'KeyMaterial' --output text > ~/.ssh/kubernetespoc.pem
     ```
 
-* Instance.yaml
+* 開発用サーバの構築
 
     ```sh
     #作成
@@ -87,7 +87,7 @@
     #接続方法等は後ほど記載しておきます
     ```
 
-* EC2停止用のLambdaを作成
+* EC2停止用のLambdaを作成（Option）
 
     ```sh
     #作成
@@ -102,7 +102,7 @@
     watch -c "aws cloudformation describe-stacks --stack-name k8sdevstoplambda | jq '.Stacks[].StackStatus'"
     ```
 
-* 23時にEC2を停止させるEventBridgeを作成（上記で作成したLambdaを23時に呼び出します）
+* 23時にEC2を停止させるEventBridgeを作成（上記で作成したLambdaを23時に呼び出します）（Option）
 
     ```sh
     #作成
@@ -117,7 +117,7 @@
     watch -c "aws cloudformation describe-stacks --stack-name k8seb | jq '.Stacks[].StackStatus'"
     ```
 
-* 月から金の８時半にEC2を停止させるEventBridgeを作成（上記で作成したLambdaを月から金の８時半に呼び出します）
+* 月から金の８時半にEC2を停止させるEventBridgeを作成（上記で作成したLambdaを月から金の８時半に呼び出します）（Option）
 
     ```sh
     #作成
@@ -132,7 +132,7 @@
     watch -c "aws cloudformation describe-stacks --stack-name k8seb | jq '.Stacks[].StackStatus'"
     ```
 
-* 土日の１３時にEC2を停止させるEventBridgeを作成（上記で作成したLambdaを土日の１３時に呼び出します）
+* 土日の１３時にEC2を停止させるEventBridgeを作成（上記で作成したLambdaを土日の１３時に呼び出します）（Option）
 
     ```sh
     #作成
@@ -147,7 +147,7 @@
     watch -c "aws cloudformation describe-stacks --stack-name k8seb | jq '.Stacks[].StackStatus'"
     ```
 
-### 開発用サーバにK8s構築に必要なツールをインストールする
+## 開発用サーバにK8s構築に必要なツールをインストールする
 
 * 開発用サーバにログインする
 
@@ -187,6 +187,6 @@
     kubectl version --client
     ```
 
-### K8sを構築（鋭意整理中）
+## K8sを構築（鋭意整理中）
 
-### Clean up
+## Clean up
